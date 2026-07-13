@@ -202,16 +202,26 @@ export class QuakeManager {
         this._constraints.set(entryId, constraints);
 
         const actor = win.get_compositor_private() as Clutter.Actor | null;
+        const place = () => {
+            // Never apply window ops synchronously inside compositor paint
+            // callbacks — make_above/move_resize can re-enter Mutter and crash.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                if (this._windows.get(entryId) !== win)
+                    return GLib.SOURCE_REMOVE;
+                this._applyGeometry(entryId, win, entry, true);
+                this._show(entryId, win, entry);
+                return GLib.SOURCE_REMOVE;
+            });
+        };
+
         if (actor) {
             const id = actor.connect('first-frame', () => {
                 actor.disconnect(id);
-                this._applyGeometry(entryId, win, entry, true);
-                this._show(entryId, win, entry);
+                place();
             });
         } else {
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                this._applyGeometry(entryId, win, entry, true);
-                this._show(entryId, win, entry);
+                place();
                 return GLib.SOURCE_REMOVE;
             });
         }
@@ -270,16 +280,18 @@ export class QuakeManager {
             win.move_resize_frame(false, rect.x, rect.y, rect.width, rect.height);
             this._lastMonitor.set(entryId, monitor);
 
-            try {
-                win.make_above();
-            } catch {
-                // ignore if unsupported
-            }
-            try {
-                win.stick();
-            } catch {
-                // optional
-            }
+            // Defer always-on-top: calling make_above during compositor
+            // paint/visibility updates crashes gnome-shell (Mutter reentrancy).
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                if (this._windows.get(entryId) !== win)
+                    return GLib.SOURCE_REMOVE;
+                try {
+                    win.make_above();
+                } catch {
+                    // ignore if unsupported
+                }
+                return GLib.SOURCE_REMOVE;
+            });
         } finally {
             // Keep suspended briefly so deferred size/position signals settle.
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {

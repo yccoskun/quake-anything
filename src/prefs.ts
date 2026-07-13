@@ -30,6 +30,7 @@ export default class QuakeAnythingPreferences extends ExtensionPreferences {
     private _listGroup: Adw.PreferencesGroup | null = null;
     private _window: Adw.PreferencesWindow | null = null;
     private _settings: Gio.Settings | null = null;
+    private _rows: Gtk.Widget[] = [];
 
     async fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
         const settings = this.getSettings();
@@ -64,15 +65,16 @@ export default class QuakeAnythingPreferences extends ExtensionPreferences {
         if (!group || !window || !settings)
             return;
 
-        let child = group.get_first_child();
-        while (child) {
-            const next = child.get_next_sibling();
-            group.remove(child);
-            child = next;
-        }
+        // PreferencesGroup rows are not flat GTK children — remove by reference.
+        for (const row of this._rows)
+            group.remove(row);
+        this._rows = [];
 
-        for (const entry of this._loadEntries(settings))
-            group.add(this._createEntryRow(window, settings, entry));
+        for (const entry of this._loadEntries(settings)) {
+            const row = this._createEntryRow(window, settings, entry);
+            group.add(row);
+            this._rows.push(row);
+        }
 
         const addRow = new Adw.ActionRow({
             activatable: true,
@@ -83,6 +85,7 @@ export default class QuakeAnythingPreferences extends ExtensionPreferences {
             this._openEditor(window, settings, null);
         });
         group.add(addRow);
+        this._rows.push(addRow);
     }
 
     private _createEntryRow(

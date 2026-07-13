@@ -1,3 +1,4 @@
+import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -25,8 +26,17 @@ export class KeybindingManager {
             'accelerator-activated',
             (_display, action) => {
                 const grabber = this._grabbers.get(action);
-                if (grabber)
-                    grabber.handler();
+                if (!grabber)
+                    return;
+                // Defer out of the accelerator signal to avoid Mutter reentrancy.
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    try {
+                        grabber.handler();
+                    } catch (e) {
+                        console.error('[quake-anything] keybinding handler failed', e);
+                    }
+                    return GLib.SOURCE_REMOVE;
+                });
             },
         );
     }
