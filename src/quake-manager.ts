@@ -22,6 +22,11 @@ interface PendingClaim {
     timeoutId: number;
 }
 
+interface FirstFrameWatch {
+    actor: Clutter.Actor;
+    signalId: number;
+}
+
 function unmaximizeCompat(win: Meta.Window): void {
     const w = win as Meta.Window & {
         unmaximize?: (flags?: Meta.MaximizeFlags) => void;
@@ -66,6 +71,9 @@ export class QuakeManager {
     private _enteredMonitorId = 0;
     private _animating = new Set<string>();
     private _applyingGeometry = new Set<string>();
+    private _sourceIds = new Set<number>();
+    private _unmanagedIds = new Map<string, number>();
+    private _firstFrameWatches = new Map<string, FirstFrameWatch>();
 
     enable(): void {
         this._windowCreatedId = global.display.connect(
@@ -89,12 +97,16 @@ export class QuakeManager {
             this._enteredMonitorId = 0;
         }
         this._clearPending();
+        this._clearSources();
         for (const id of [...this._windows.keys()])
             this._detachWindow(id, false);
         this._entries.clear();
         this._livePercent.clear();
         this._lastMonitor.clear();
         this._applyingGeometry.clear();
+        this._animating.clear();
+        this._unmanagedIds.clear();
+        this._firstFrameWatches.clear();
     }
 
     setEntries(entries: QuakeEntry[]): void {
@@ -144,16 +156,17 @@ export class QuakeManager {
         }
 
         this._clearPending();
+        const timeoutId = this._timeoutAdd(GLib.PRIORITY_DEFAULT, CLAIM_TIMEOUT_MS, () => {
+            if (this._pending?.entryId === entry.id) {
+                Main.notify('Quake Anything', `Timed out waiting for ${entry.appId}`);
+                this._pending = null;
+            }
+            return GLib.SOURCE_REMOVE;
+        });
         this._pending = {
             entryId: entry.id,
             appId: this._normalizeAppId(entry.appId),
-            timeoutId: GLib.timeout_add(GLib.PRIORITY_DEFAULT, CLAIM_TIMEOUT_MS, () => {
-                if (this._pending?.entryId === entry.id) {
-                    Main.notify('Quake Anything', `Timed out waiting for ${entry.appId}`);
-                    this._pending = null;
-                }
-                return GLib.SOURCE_REMOVE;
-            }),
+            timeoutId,
         };
 
         try {
@@ -175,12 +188,12 @@ export class QuakeManager {
         if (!pending)
             return;
 
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._idleAdd(GLib.PRIORITY_DEFAULT_IDLE, () => {
             if (!this._pending || this._pending.entryId !== pending.entryId)
                 return GLib.SOURCE_REMOVE;
 
             if (!this._windowMatchesPending(win, pending.appId)) {
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this._timeoutAdd(GLib.PRIORITY_DEFAULT, 100, () => {
                     if (!this._pending || this._pending.entryId !== pending.entryId)
                         return GLib.SOURCE_REMOVE;
                     if (this._windowMatchesPending(win, pending.appId))
@@ -218,14 +231,15 @@ export class QuakeManager {
         this._livePercent.delete(entryId);
         this._lastMonitor.delete(entryId);
 
-        win.connect('unmanaged', () => {
+        const unmanagedId = win.connect('unmanaged', () => {
             if (this._windows.get(entryId) === win)
                 this._detachWindow(entryId, true);
         });
+        this._unmanagedIds.set(entryId, unmanagedId);
 
         const actor = win.get_compositor_private() as Clutter.Actor | null;
         const place = () => {
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._idleAdd(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 if (this._windows.get(entryId) !== win)
                     return GLib.SOURCE_REMOVE;
                 this._applyQuakeGeometry(entryId, win, entry, true);
@@ -235,12 +249,14 @@ export class QuakeManager {
         };
 
         if (actor) {
-            const id = actor.connect('first-frame', () => {
-                actor.disconnect(id);
+            this._clearFirstFrameWatch(entryId);
+            const signalId = actor.connect('first-frame', () => {
+                this._clearFirstFrameWatch(entryId);
                 place();
             });
+            this._firstFrameWatches.set(entryId, { actor, signalId });
         } else {
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            this._timeoutAdd(GLib.PRIORITY_DEFAULT, 100, () => {
                 place();
                 return GLib.SOURCE_REMOVE;
             });
@@ -248,12 +264,46 @@ export class QuakeManager {
     }
 
     private _detachWindow(entryId: string, resetSessionState: boolean): void {
+        const win = this._windows.get(entryId);
+        this._disconnectUnmanaged(entryId, win);
+        this._clearFirstFrameWatch(entryId);
+
+        if (win) {
+            const actor = win.get_compositor_private() as Clutter.Actor | null;
+            actor?.remove_all_transitions();
+            actor?.set_translation(0, 0, 0);
+        }
+
         this._windows.delete(entryId);
         this._animating.delete(entryId);
         this._applyingGeometry.delete(entryId);
         if (resetSessionState) {
             this._livePercent.delete(entryId);
             this._lastMonitor.delete(entryId);
+        }
+    }
+
+    private _disconnectUnmanaged(entryId: string, win?: Meta.Window): void {
+        const signalId = this._unmanagedIds.get(entryId);
+        this._unmanagedIds.delete(entryId);
+        if (signalId == null || !win)
+            return;
+        try {
+            win.disconnect(signalId);
+        } catch {
+            // Window may already be gone.
+        }
+    }
+
+    private _clearFirstFrameWatch(entryId: string): void {
+        const watch = this._firstFrameWatches.get(entryId);
+        this._firstFrameWatches.delete(entryId);
+        if (!watch)
+            return;
+        try {
+            watch.actor.disconnect(watch.signalId);
+        } catch {
+            // Actor may already be gone.
         }
     }
 
@@ -286,7 +336,7 @@ export class QuakeManager {
             return;
 
         // Re-dock on the new monitor using the preserved size ratio.
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        this._idleAdd(GLib.PRIORITY_DEFAULT_IDLE, () => {
             if (this._windows.get(entryId) !== win)
                 return GLib.SOURCE_REMOVE;
             this._applyQuakeGeometry(entryId, win, entry, false);
@@ -342,7 +392,7 @@ export class QuakeManager {
             if (!this._livePercent.has(entryId))
                 this._livePercent.set(entryId, percent);
         } finally {
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._idleAdd(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 this._applyingGeometry.delete(entryId);
                 return GLib.SOURCE_REMOVE;
             });
@@ -445,9 +495,42 @@ export class QuakeManager {
         return appId.trim().replace(/\.desktop$/i, '').toLowerCase();
     }
 
+    private _idleAdd(priority: number, callback: () => boolean): number {
+        let sourceId = 0;
+        sourceId = GLib.idle_add(priority, () => {
+            this._sourceIds.delete(sourceId);
+            return callback();
+        });
+        this._sourceIds.add(sourceId);
+        return sourceId;
+    }
+
+    private _timeoutAdd(priority: number, intervalMs: number, callback: () => boolean): number {
+        let sourceId = 0;
+        sourceId = GLib.timeout_add(priority, intervalMs, () => {
+            this._sourceIds.delete(sourceId);
+            return callback();
+        });
+        this._sourceIds.add(sourceId);
+        return sourceId;
+    }
+
+    private _removeSource(sourceId: number): void {
+        if (!this._sourceIds.has(sourceId))
+            return;
+        this._sourceIds.delete(sourceId);
+        GLib.Source.remove(sourceId);
+    }
+
+    private _clearSources(): void {
+        for (const sourceId of this._sourceIds)
+            GLib.Source.remove(sourceId);
+        this._sourceIds.clear();
+    }
+
     private _clearPending(): void {
         if (this._pending?.timeoutId)
-            GLib.source_remove(this._pending.timeoutId);
+            this._removeSource(this._pending.timeoutId);
         this._pending = null;
     }
 }

@@ -37,8 +37,7 @@ bun install
 bun run build
 glib-compile-schemas schemas/
 gnome-extensions pack --force \
-  --extra-source=prefs.js \
-  --extra-source=stylesheet.css \
+  --extra-source=LICENSE \
   .
 gnome-extensions install --force quake-anything@yccoskun.github.io.shell-extension.zip
 ```
@@ -78,4 +77,4 @@ bun run build          # writes extension.js + prefs.js
 bun run schemas        # compiles GSettings schemas
 ```
 
-Source lives under `src/`. Runtime files for GNOME are `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, and `schemas/`.
+Source lives under `src/`. Runtime files for GNOME are `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, `LICENSE`, and `schemas/`.

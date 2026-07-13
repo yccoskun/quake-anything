@@ -20,6 +20,7 @@ export class KeybindingManager {
     private _grabbers = new Map<number, Grabber>();
     private _byId = new Map<string, number>();
     private _activatedId = 0;
+    private _sourceIds = new Set<number>();
 
     enable(): void {
         this._activatedId = global.display.connect(
@@ -29,7 +30,9 @@ export class KeybindingManager {
                 if (!grabber)
                     return;
                 // Defer out of the accelerator signal to avoid Mutter reentrancy.
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                let sourceId = 0;
+                sourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    this._sourceIds.delete(sourceId);
                     try {
                         grabber.handler();
                     } catch (e) {
@@ -37,6 +40,7 @@ export class KeybindingManager {
                     }
                     return GLib.SOURCE_REMOVE;
                 });
+                this._sourceIds.add(sourceId);
             },
         );
     }
@@ -46,8 +50,11 @@ export class KeybindingManager {
             global.display.disconnect(this._activatedId);
             this._activatedId = 0;
         }
+        this._clearSources();
         for (const id of [...this._byId.keys()])
             this.unbind(id);
+        this._grabbers.clear();
+        this._byId.clear();
     }
 
     /**
@@ -91,5 +98,11 @@ export class KeybindingManager {
 
         this._grabbers.delete(action);
         this._byId.delete(id);
+    }
+
+    private _clearSources(): void {
+        for (const sourceId of this._sourceIds)
+            GLib.Source.remove(sourceId);
+        this._sourceIds.clear();
     }
 }

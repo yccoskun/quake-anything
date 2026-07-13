@@ -41,6 +41,7 @@ export default class QuakeAnythingExtension extends Extension {
         this._quake?.disable();
         this._quake = null;
 
+        this._boundIds.clear();
         this._settings = null;
     }
 
