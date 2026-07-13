@@ -1,6 +1,6 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import GioUnix from 'gi://GioUnix';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -321,8 +321,8 @@ export class QuakeManager {
         actor.set_translation(offset.x, offset.y, 0);
         this._animating.add(entryId);
         actor.ease({
-            translation_x: 0,
-            translation_y: 0,
+            translationX: 0,
+            translationY: 0,
             duration: ANIM_MS,
             mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             onStopped: () => {
@@ -363,7 +363,7 @@ export class QuakeManager {
 
         try {
             const desktopId = raw.endsWith('.desktop') ? raw : `${raw}.desktop`;
-            const info = Gio.DesktopAppInfo.new(desktopId);
+            const info = GioUnix.DesktopAppInfo.new(desktopId);
             if (info) {
                 const id = info.get_id();
                 if (id) {

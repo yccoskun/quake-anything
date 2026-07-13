@@ -26,15 +26,29 @@ const SIDE_LABELS: { id: QuakeSide; title: string; subtitle: string }[] = [
     { id: 'right', title: 'Right', subtitle: 'Docked to right, expands leftward' },
 ];
 
+/**
+ * Host object passed to fillPreferencesWindow.
+ *
+ * Adw.PreferencesWindow is deprecated since 1.6 in favor of PreferencesDialog,
+ * but GNOME Shell's ExtensionPrefsDialog still subclasses PreferencesWindow and
+ * invokes this API — so we type the host by capability instead of the deprecated
+ * class name.
+ */
+type PrefsHost = Adw.Window & {
+    add(page: Adw.PreferencesPage): void;
+    search_enabled: boolean;
+    add_toast(toast: Adw.Toast): void;
+};
+
 export default class QuakeAnythingPreferences extends ExtensionPreferences {
     private _listGroup: Adw.PreferencesGroup | null = null;
-    private _window: Adw.PreferencesWindow | null = null;
+    private _window: PrefsHost | null = null;
     private _settings: Gio.Settings | null = null;
     private _rows: Gtk.Widget[] = [];
 
-    async fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
+    async fillPreferencesWindow(window: PrefsHost): Promise<void> {
         const settings = this.getSettings();
-        (window as Adw.PreferencesWindow & { _settings?: Gio.Settings })._settings = settings;
+        (window as PrefsHost & { _settings?: Gio.Settings })._settings = settings;
         this._window = window;
         this._settings = settings;
 
@@ -89,7 +103,7 @@ export default class QuakeAnythingPreferences extends ExtensionPreferences {
     }
 
     private _createEntryRow(
-        window: Adw.PreferencesWindow,
+        window: PrefsHost,
         settings: Gio.Settings,
         entry: QuakeEntry,
     ): Adw.ActionRow {
@@ -147,7 +161,7 @@ export default class QuakeAnythingPreferences extends ExtensionPreferences {
     }
 
     private _openEditor(
-        window: Adw.PreferencesWindow,
+        window: PrefsHost,
         settings: Gio.Settings,
         existing: QuakeEntry | null,
     ): void {
