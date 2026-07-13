@@ -1,9 +1,16 @@
 {
   "name": "Quake Anything",
-  "description": "Use any application in Quake mode",
+  "description": "Use any application in Quake mode, docked to any edge of the monitor",
   "uuid": "quake-anything@yccoskun.github.io",
   "url": "https://github.com/yccoskun/quake-anything",
+  "settings-schema": "org.gnome.shell.extensions.quake-anything",
   "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
     "50"
-  ]
+  ],
+  "version": 1
 }

@@ -1,41 +1,87 @@
-import '@girs/gnome-shell/ambient';
 import '@girs/gnome-shell/extensions/global';
 
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
+import type Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-export default class TypeScriptExtension extends Extension {
-    // Correctly type the indicator as PanelMenu.Button
-    private _indicator: PanelMenu.Button | null = null;
+import { KeybindingManager } from './keybindings.js';
+import { QuakeManager } from './quake-manager.js';
+import { parseEntries, type QuakeEntry, type QuakeEntryTuple } from './types.js';
+
+export default class QuakeAnythingExtension extends Extension {
+    private _settings: Gio.Settings | null = null;
+    private _settingsChangedId = 0;
+    private _quake: QuakeManager | null = null;
+    private _keys: KeybindingManager | null = null;
+    private _boundIds = new Set<string>();
 
     enable() {
-        // 1. Initialize the official PanelMenu Button
-        // Arguments: (menuAlign: number, nameText: string, dontCreateMenu?: boolean)
-        this._indicator = new PanelMenu.Button(0.5, this.metadata.name, false);
+        this._settings = this.getSettings();
+        this._quake = new QuakeManager();
+        this._keys = new KeybindingManager();
 
-        // 2. Create the child element you want inside the button
-        const label = new St.Label({
-            text: 'TS Active',
-            y_align: Clutter.ActorAlign.CENTER,
-            style_class: 'ts-indicator-label'
+        this._quake.enable();
+        this._keys.enable();
+
+        this._reload();
+        this._settingsChangedId = this._settings.connect('changed::entries', () => {
+            this._reload();
         });
-
-        // 3. Add your label inside the PanelMenu.Button wrapper
-        this._indicator.add_child(label);
-
-        // 4. Add the PanelMenu.Button to the panel status area
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
-        console.log(`[${this.uuid}] Extension enabled via TS bundle!`);
     }
 
     disable() {
-        if (this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
+        if (this._settings && this._settingsChangedId) {
+            this._settings.disconnect(this._settingsChangedId);
+            this._settingsChangedId = 0;
         }
-        console.log(`[${this.uuid}] Extension disabled.`);
+
+        this._keys?.disable();
+        this._keys = null;
+
+        this._quake?.disable();
+        this._quake = null;
+
+        this._settings = null;
+    }
+
+    private _reload(): void {
+        if (!this._settings || !this._quake || !this._keys)
+            return;
+
+        const raw = this._settings.get_value('entries').deep_unpack() as QuakeEntryTuple[];
+        const entries = parseEntries(raw);
+        this._quake.setEntries(entries);
+        this._rebindKeys(entries);
+    }
+
+    private _rebindKeys(entries: QuakeEntry[]): void {
+        if (!this._keys || !this._quake)
+            return;
+
+        const nextIds = new Set(entries.map(e => e.id));
+        for (const id of this._boundIds) {
+            if (!nextIds.has(id))
+                this._keys.unbind(id);
+        }
+        this._boundIds.clear();
+
+        for (const entry of entries) {
+            if (!entry.shortcut) {
+                this._keys.unbind(entry.id);
+                continue;
+            }
+
+            const ok = this._keys.bind(entry.id, entry.shortcut, () => {
+                this._quake?.toggle(entry.id);
+            });
+            this._boundIds.add(entry.id);
+
+            if (!ok) {
+                Main.notify(
+                    'Quake Anything',
+                    `Shortcut "${entry.shortcut}" is already in use and could not be bound.`,
+                );
+            }
+        }
     }
 }

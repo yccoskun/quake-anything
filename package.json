@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "bun build ./src/extension.ts --outfile=./extension.js --target=node --external=gi://* --external=resource://*",
-    "watch": "bun build ./src/extension.ts --outfile=./extension.js --target=node --external=gi://* --external=resource://* --watch"
+    "build": "bun run build:extension && bun run build:prefs",
+    "build:extension": "bun build ./src/extension.ts --outfile=./extension.js --target=node --format=esm --external=gi://* --external=resource://*",
+    "build:prefs": "bun build ./src/prefs.ts --outfile=./prefs.js --target=node --format=esm --external=gi://* --external=resource://*",
+    "watch": "bun build ./src/extension.ts --outfile=./extension.js --target=node --format=esm --external=gi://* --external=resource://* --watch",
+    "schemas": "glib-compile-schemas schemas/",
+    "pack": "bun run build && bun run schemas && gnome-extensions pack --force --podir=/dev/null 2>/dev/null; gnome-extensions pack --force .",
+    "install-ext": "bun run build && bun run schemas && mkdir -p \"$HOME/.local/share/gnome-shell/extensions/quake-anything@yccoskun.github.io\" && rsync -a --delete --exclude node_modules --exclude .git --exclude src --exclude bun.lock --exclude tsconfig.json --exclude package.json --exclude '*.ts' ./ \"$HOME/.local/share/gnome-shell/extensions/quake-anything@yccoskun.github.io/\""
   },
   "devDependencies": {
     "@girs/gjs": "^4.0.0",

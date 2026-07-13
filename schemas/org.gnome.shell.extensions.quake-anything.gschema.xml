@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="quake-anything">
+  <schema id="org.gnome.shell.extensions.quake-anything"
+          path="/org/gnome/shell/extensions/quake-anything/">
+    <!--
+      Entry tuple: (id, app-id, side, shortcut, size-percent)
+      side: top | bottom | left | right
+      shortcut: accelerator string, or empty when disabled
+      size-percent: 10–90
+    -->
+    <key name="entries" type="a(ssssi)">
+      <default>[]</default>
+      <summary>Quake application entries</summary>
+      <description>
+        Configured Quake-mode applications. Each entry is an id, desktop app id,
+        dock side, keyboard shortcut, and default size percentage.
+      </description>
+    </key>
+  </schema>
+</schemalist>
