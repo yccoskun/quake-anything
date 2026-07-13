@@ -63,12 +63,19 @@ export class QuakeManager {
     private _lastMonitor = new Map<string, number>();
     private _pending: PendingClaim | null = null;
     private _windowCreatedId = 0;
+    private _enteredMonitorId = 0;
     private _animating = new Set<string>();
+    private _applyingGeometry = new Set<string>();
 
     enable(): void {
         this._windowCreatedId = global.display.connect(
             'window-created',
             (_d, win) => this._onWindowCreated(win),
+        );
+        // Reliable monitor transitions (move_to_monitor / other extensions).
+        this._enteredMonitorId = global.display.connect(
+            'window-entered-monitor',
+            (_d, monitorIndex, win) => this._onEnteredMonitor(monitorIndex, win),
         );
     }
 
@@ -77,12 +84,17 @@ export class QuakeManager {
             global.display.disconnect(this._windowCreatedId);
             this._windowCreatedId = 0;
         }
+        if (this._enteredMonitorId) {
+            global.display.disconnect(this._enteredMonitorId);
+            this._enteredMonitorId = 0;
+        }
         this._clearPending();
         for (const id of [...this._windows.keys()])
             this._detachWindow(id, false);
         this._entries.clear();
         this._livePercent.clear();
         this._lastMonitor.clear();
+        this._applyingGeometry.clear();
     }
 
     setEntries(entries: QuakeEntry[]): void {
@@ -238,10 +250,48 @@ export class QuakeManager {
     private _detachWindow(entryId: string, resetSessionState: boolean): void {
         this._windows.delete(entryId);
         this._animating.delete(entryId);
+        this._applyingGeometry.delete(entryId);
         if (resetSessionState) {
             this._livePercent.delete(entryId);
             this._lastMonitor.delete(entryId);
         }
+    }
+
+    private _entryIdForWindow(win: Meta.Window): string | null {
+        for (const [id, owned] of this._windows) {
+            if (owned === win)
+                return id;
+        }
+        return null;
+    }
+
+    private _onEnteredMonitor(monitorIndex: number, win: Meta.Window): void {
+        const entryId = this._entryIdForWindow(win);
+        if (!entryId)
+            return;
+        if (this._applyingGeometry.has(entryId) || this._animating.has(entryId))
+            return;
+
+        const entry = this._entries.get(entryId);
+        if (!entry)
+            return;
+        if (win.minimized || !this._isVisible(win)) {
+            this._lastMonitor.set(entryId, monitorIndex);
+            return;
+        }
+
+        const previous = this._lastMonitor.get(entryId);
+        this._lastMonitor.set(entryId, monitorIndex);
+        if (previous === monitorIndex)
+            return;
+
+        // Re-dock on the new monitor using the preserved size ratio.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            if (this._windows.get(entryId) !== win)
+                return GLib.SOURCE_REMOVE;
+            this._applyQuakeGeometry(entryId, win, entry, false);
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     private _effectivePercent(entryId: string, entry: QuakeEntry): number {
@@ -268,22 +318,35 @@ export class QuakeManager {
         usePointerMonitor: boolean,
     ): void {
         const percent = this._effectivePercent(entryId, entry);
+        // Always dock where the window *is* (or under the pointer on first spawn).
+        // Never force a stale _lastMonitor — that undoes cross-monitor moves.
         const monitor = usePointerMonitor
             ? getPointerMonitorIndex()
-            : (this._lastMonitor.get(entryId) ?? win.get_monitor());
+            : win.get_monitor();
         const rect = computeQuakeRect(entry.side, percent, monitor);
 
-        unmaximizeCompat(win);
+        this._applyingGeometry.add(entryId);
+        try {
+            unmaximizeCompat(win);
 
-        if (win.get_monitor() !== monitor)
-            win.move_to_monitor(monitor);
+            if (win.get_monitor() !== monitor)
+                win.move_to_monitor(monitor);
 
-        const workspace = global.workspace_manager.get_active_workspace();
-        if (!win.located_on_workspace(workspace))
-            win.change_workspace(workspace);
+            const workspace = global.workspace_manager.get_active_workspace();
+            if (!win.located_on_workspace(workspace))
+                win.change_workspace(workspace);
 
-        win.move_resize_frame(false, rect.x, rect.y, rect.width, rect.height);
-        this._lastMonitor.set(entryId, monitor);
+            win.move_resize_frame(false, rect.x, rect.y, rect.width, rect.height);
+            this._lastMonitor.set(entryId, monitor);
+            // Seed live % so later monitor hops keep a known ratio even before hide.
+            if (!this._livePercent.has(entryId))
+                this._livePercent.set(entryId, percent);
+        } finally {
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._applyingGeometry.delete(entryId);
+                return GLib.SOURCE_REMOVE;
+            });
+        }
     }
 
     private _isVisible(win: Meta.Window): boolean {
@@ -314,7 +377,7 @@ export class QuakeManager {
         const rect = computeQuakeRect(
             entry.side,
             this._effectivePercent(entryId, entry),
-            this._lastMonitor.get(entryId) ?? win.get_monitor(),
+            win.get_monitor(),
         );
         const offset = slideOffsetForSide(entry.side, rect);
         actor.remove_all_transitions();
