@@ -1,0 +1,9 @@
+{
+  "name": "Quake Anything",
+  "description": "Use any application in Quake mode",
+  "uuid": "quake-anything@yccoskun.github.io",
+  "url": "https://github.com/yccoskun/quake-anything",
+  "shell-version": [
+    "50"
+  ]
+}

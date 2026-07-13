@@ -1,0 +1,13 @@
+{
+  "name": "quake-anything",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./src/extension.ts --outfile=./extension.js --target=node --external=gi://* --external=resource://*",
+    "watch": "bun build ./src/extension.ts --outfile=./extension.js --target=node --external=gi://* --external=resource://* --watch"
+  },
+  "devDependencies": {
+    "@girs/gjs": "^4.0.0",
+    "@girs/gnome-shell": "^50.0.0"
+  }
+}

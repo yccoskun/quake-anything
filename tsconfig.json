@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "ESNext",
+      "moduleResolution": "bundler",
+      "strict": true,
+      "skipLibCheck": true,
+      "noImplicitAny": true,
+      "allowSyntheticDefaultImports": true,
+      "types": [
+        "@girs/gjs",
+        "@girs/gnome-shell/ambient",
+        "@girs/gnome-shell/extensions/global"
+      ]
+    },
+    "include": ["src/**/*"]
+  }

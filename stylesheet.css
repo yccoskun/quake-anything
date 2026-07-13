@@ -1,0 +1,5 @@
+.ts-indicator-label {
+    font-weight: bold;
+    color: #3584e4; /* GNOME Blue */
+    padding: 0 4px;
+}
