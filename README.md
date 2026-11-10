@@ -83,12 +83,9 @@ Quake edge and size.
 
 ## Development
 
-Requires [Bun](https://bun.sh/). With [mise](https://mise.jdx.dev/), `mise install`
-in the repo sets it up from `mise.toml`. TypeScript and ESLint come in through
-`bun install`.
-
-Source under `src/` is compiled with `tsc` into separate modules under `dist/` —
-not bundled into one file, which the extensions.gnome.org review process requires.
+Requires [Bun](https://bun.sh/) (or Node) and TypeScript. Source under `src/` is
+compiled with `tsc` into separate modules under `dist/` — not bundled into one
+file, which the extensions.gnome.org review process requires.
 
 ```bash
 bun install
