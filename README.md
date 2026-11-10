@@ -3,7 +3,7 @@
 Drop down (or side-dock) **any** GUI app with a keyboard shortcut — Quake-style, not just a terminal.
 
 [![extensions.gnome.org](https://img.shields.io/badge/extensions.gnome.org-Quake%20Anything-4A86CF?logo=gnome&logoColor=white)](https://extensions.gnome.org/extension/10596/quake-anything/)
-[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-46--50-4A86CF)](https://release.gnome.org/)
+[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-46--51-4A86CF)](https://release.gnome.org/)
 [![License: GPL v2+](https://img.shields.io/badge/License-GPLv2%2B-blue.svg)](LICENSE)
 
 <p align="center">
