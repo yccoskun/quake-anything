@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-13
+
 ### Added
 
 - GNOME Shell 51 support.
@@ -50,6 +52,7 @@ Initial release on [extensions.gnome.org](https://extensions.gnome.org/extension
   conflict warnings against existing GNOME shortcuts.
 - GNOME Shell 46–50 support.
 
-[Unreleased]: https://github.com/yccoskun/quake-anything/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/yccoskun/quake-anything/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/yccoskun/quake-anything/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/yccoskun/quake-anything/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yccoskun/quake-anything/releases/tag/v1.0.0

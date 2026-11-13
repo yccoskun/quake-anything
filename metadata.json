@@ -1,6 +1,6 @@
 {
   "name": "Quake Anything",
-  "version-name": "1.0.1",
+  "version-name": "1.1.0",
   "description": "Drop down (or side-dock) any GUI app with a keyboard shortcut — Quake-style, not just a terminal.\n\n* Dock apps to top, bottom, left, or right\n* Each app has its own shortcut and size percentage\n* Only windows spawned by this extension are controlled\n* Configure everything in the extension Settings (no panel icon)",
   "uuid": "quake-anything@yccoskun.github.io",
   "url": "https://github.com/yccoskun/quake-anything",
